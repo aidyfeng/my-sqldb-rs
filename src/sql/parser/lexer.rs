@@ -1,4 +1,4 @@
-use std::{iter::Peekable, str::Chars};
+use std::{iter::Peekable, str::Chars, string};
 
 use crate::error::Result;
 
@@ -75,6 +75,9 @@ impl<'a> Lexer<'a> {
 
     }
 
+    /**
+     * 如果满足条件,则跳转下一个
+     */
     fn next_if<F:Fn(char) -> bool>(&mut self,predicate:F) -> Option<char>{
         self.iter.peek().filter(|&&it| predicate(it))?;
         self.iter.next()
@@ -83,8 +86,12 @@ impl<'a> Lexer<'a> {
     /**
      * 判断当前字符是否满足条件,如果是的话跳转到下一个
      */
-    fn next_while(&mut self,){
-
+    fn next_while<F:Fn(char) -> bool>(&mut self,predicate:F) -> Option<String>{
+        let mut value = String::new();
+        while let Some(c) = self.next_if(&predicate){
+            value.push(c);
+        }
+        Some(value).filter(|it| !it.is_empty())
     }
 
     fn scan(&mut self) -> Result<Option<Token>>{
