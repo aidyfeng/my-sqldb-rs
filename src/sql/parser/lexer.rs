@@ -1,5 +1,7 @@
 use std::{iter::Peekable, str::Chars};
 
+use crate::error::Result;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // 关键字
@@ -64,5 +66,28 @@ impl<'a> Lexer<'a> {
         Self {
             iter: sql_test.chars().peekable()
         }
+    }
+
+    /**
+     * 消除空白字符串
+     */
+    fn erase_whitespace(&mut self){
+
+    }
+
+    fn next_if<F:Fn(char) -> bool>(&mut self,predicate:F) -> Option<char>{
+        self.iter.peek().filter(|&&it| predicate(it))?;
+        self.iter.next()
+    }
+
+    /**
+     * 判断当前字符是否满足条件,如果是的话跳转到下一个
+     */
+    fn next_while(&mut self,){
+
+    }
+
+    fn scan(&mut self) -> Result<Option<Token>>{
+        //消除字符串中的空白字符
     }
 }
