@@ -102,12 +102,16 @@ impl<'a> Lexer<'a> {
         self.erase_whitespace();
         match self.iter.peek() {
             Some('\'') => self.scan_string(), //扫描字符串
+            Some(c) if c.is_ascii_digit() => Ok(self.scan_num()), // 扫描数字
             _ => todo!(),
             None => Ok(None),
         };
         todo!()
     }
 
+    /**
+     * 扫描字符串
+     */
     fn scan_string(&mut self) -> Result<Option<Token>> {
         if self.next_if(|it| it == '\'').is_none() {
             return Ok(None);
@@ -123,5 +127,23 @@ impl<'a> Lexer<'a> {
         }
 
         Ok(Some(Token::String(value)))
+    }
+
+    /**
+     * 扫描数字
+     */
+    fn scan_num(&mut self) -> Option<Token>{
+        //获取数字
+        let mut num = self.next_while(|it| it.is_ascii_digit())?;
+
+        //判断是否有小数点, 如果有小数点, 则是浮点数, 继续扫描
+        if let Some(sep) = self.next_if(|it| it == '.'){
+            num.push(sep);
+            while let Some(c) = self.next_if(|it| it.is_ascii_digit()){
+                num.push(c);
+            }
+        }
+
+        Some(Token::Number(num))
     }
 }
