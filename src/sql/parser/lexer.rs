@@ -1,4 +1,4 @@
-use std::{iter::Peekable, str::Chars, string};
+use std::{iter::Peekable, str::Chars};
 
 use crate::error::{Error, Result};
 
@@ -260,5 +260,54 @@ impl<'a> Lexer<'a> {
                 _ => return None,
             })
         })
+    }
+}
+
+mod test {
+
+    use std::vec;
+
+    use crate::{
+        error::Result,
+        sql::parser::lexer::{Keyword, Token},
+    };
+
+    use super::Lexer;
+
+    #[test]
+    fn test_lexer_create_table() -> Result<()> {
+        let tokens = Lexer::new(
+            "
+                create table tbl(
+                    id1 int primary key,
+                    id2 integer
+                );
+                ",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
+        // println!("{:?}",tokens);
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Create),
+                Token::Keyword(Keyword::Table),
+                Token::Ident("tbl".to_string()),
+                Token::OpenParen,
+                Token::Ident("id1".to_string()),
+                Token::Keyword(Keyword::Int),
+                Token::Keyword(Keyword::Primary),
+                Token::Keyword(Keyword::Key),
+                Token::Comma,
+                Token::Ident("id2".to_string()),
+                Token::Keyword(Keyword::Integer),
+                Token::CloseParen,
+                Token::Semicolon
+            ]
+        );
+
+        Ok(())
     }
 }
