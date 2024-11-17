@@ -1,4 +1,4 @@
-use std::{iter::Peekable, str::Chars};
+use std::{fmt::Display, iter::Peekable, str::Chars};
 
 use crate::error::{Error, Result};
 
@@ -28,6 +28,25 @@ pub enum Token {
     Minus,
     // 斜杠 /
     Slash,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Token::Keyword(keyword) => keyword.to_str(),
+            Token::Ident(ident) => ident,
+            Token::String(v) => v,
+            Token::Number(n) => n,
+            Token::OpenParen => "(",
+            Token::CloseParen => ")",
+            Token::Comma => ",",
+            Token::Semicolon => ";",
+            Token::Asterisk => "*",
+            Token::Plus => "+",
+            Token::Minus => "-",
+            Token::Slash => "/",
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -308,7 +327,6 @@ mod test {
             ]
         );
 
-
         let tokens2 = Lexer::new(
             "CREATE table tbl
                         (
@@ -329,20 +347,22 @@ mod test {
         .peekable()
         .collect::<Result<Vec<_>>>()?;
 
-        println!("{:?}",tokens2);
+        println!("{:?}", tokens2);
 
         assert!(tokens2.len() > 0);
 
         Ok(())
     }
 
-
     #[test]
-    fn test_lexer_insert_into() -> Result<()>{
-
-        let tokens1 = Lexer::new("
+    fn test_lexer_insert_into() -> Result<()> {
+        let tokens1 = Lexer::new(
+            "
                     insert into tbl values(1,2,'3',true, false,4.55);
-                ").peekable().collect::<Result<Vec<_>>>()?;
+                ",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
 
         // println!("{:?}",tokens1);
 
@@ -370,51 +390,55 @@ mod test {
             ]
         );
 
-
         let tokens2 = Lexer::new("INSERT INTO       tbl (id, name, age) values (100, 'db', 10);")
-        .peekable()
-        .collect::<Result<Vec<_>>>()?;
+            .peekable()
+            .collect::<Result<Vec<_>>>()?;
 
-    assert_eq!(
-        tokens2,
-        vec![
-            Token::Keyword(Keyword::Insert),
-            Token::Keyword(Keyword::Into),
-            Token::Ident("tbl".to_string()),
-            Token::OpenParen,
-            Token::Ident("id".to_string()),
-            Token::Comma,
-            Token::Ident("name".to_string()),
-            Token::Comma,
-            Token::Ident("age".to_string()),
-            Token::CloseParen,
-            Token::Keyword(Keyword::Values),
-            Token::OpenParen,
-            Token::Number("100".to_string()),
-            Token::Comma,
-            Token::String("db".to_string()),
-            Token::Comma,
-            Token::Number("10".to_string()),
-            Token::CloseParen,
-            Token::Semicolon,
-        ]
-    );
+        assert_eq!(
+            tokens2,
+            vec![
+                Token::Keyword(Keyword::Insert),
+                Token::Keyword(Keyword::Into),
+                Token::Ident("tbl".to_string()),
+                Token::OpenParen,
+                Token::Ident("id".to_string()),
+                Token::Comma,
+                Token::Ident("name".to_string()),
+                Token::Comma,
+                Token::Ident("age".to_string()),
+                Token::CloseParen,
+                Token::Keyword(Keyword::Values),
+                Token::OpenParen,
+                Token::Number("100".to_string()),
+                Token::Comma,
+                Token::String("db".to_string()),
+                Token::Comma,
+                Token::Number("10".to_string()),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
 
         Ok(())
     }
 
     #[test]
-    fn test_lexer_select() -> Result<()>{
-        let tokens = Lexer::new("select * from tbl;").peekable().collect::<Result<Vec<_>>>()?;
+    fn test_lexer_select() -> Result<()> {
+        let tokens = Lexer::new("select * from tbl;")
+            .peekable()
+            .collect::<Result<Vec<_>>>()?;
         // println!("{:?}",tokens);
 
-        assert_eq!(tokens,vec![
-            Token::Keyword(Keyword::Select),
-            Token::Asterisk,
-            Token::Keyword(Keyword::From),
-            Token::Ident("tbl".to_string()),
-            Token::Semicolon
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Select),
+                Token::Asterisk,
+                Token::Keyword(Keyword::From),
+                Token::Ident("tbl".to_string()),
+                Token::Semicolon
+            ]
+        );
         Ok(())
     }
 }
