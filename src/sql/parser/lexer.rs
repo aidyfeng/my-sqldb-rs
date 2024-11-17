@@ -265,7 +265,7 @@ impl<'a> Lexer<'a> {
 
 mod test {
 
-    use std::vec;
+    use std::{result, vec};
 
     use crate::{
         error::Result,
@@ -308,6 +308,113 @@ mod test {
             ]
         );
 
+
+        let tokens2 = Lexer::new(
+            "CREATE table tbl
+                        (
+                            id1 int primary key,
+                            id2 integer,
+                            c1 bool null,
+                            c2 boolean not null,
+                            c3 float null,
+                            c4 double,
+                            c5 string,
+                            c6 text,
+                            c7 varchar default 'foo',
+                            c8 int default 100,
+                            c9 integer
+                        );
+                        ",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
+        println!("{:?}",tokens2);
+
+        assert!(tokens2.len() > 0);
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_lexer_insert_into() -> Result<()>{
+
+        let tokens1 = Lexer::new("
+                    insert into tbl values(1,2,'3',true, false,4.55);
+                ").peekable().collect::<Result<Vec<_>>>()?;
+
+        // println!("{:?}",tokens1);
+
+        assert_eq!(
+            tokens1,
+            vec![
+                Token::Keyword(Keyword::Insert),
+                Token::Keyword(Keyword::Into),
+                Token::Ident("tbl".to_string()),
+                Token::Keyword(Keyword::Values),
+                Token::OpenParen,
+                Token::Number("1".to_string()),
+                Token::Comma,
+                Token::Number("2".to_string()),
+                Token::Comma,
+                Token::String("3".to_string()),
+                Token::Comma,
+                Token::Keyword(Keyword::True),
+                Token::Comma,
+                Token::Keyword(Keyword::False),
+                Token::Comma,
+                Token::Number("4.55".to_string()),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
+
+
+        let tokens2 = Lexer::new("INSERT INTO       tbl (id, name, age) values (100, 'db', 10);")
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
+    assert_eq!(
+        tokens2,
+        vec![
+            Token::Keyword(Keyword::Insert),
+            Token::Keyword(Keyword::Into),
+            Token::Ident("tbl".to_string()),
+            Token::OpenParen,
+            Token::Ident("id".to_string()),
+            Token::Comma,
+            Token::Ident("name".to_string()),
+            Token::Comma,
+            Token::Ident("age".to_string()),
+            Token::CloseParen,
+            Token::Keyword(Keyword::Values),
+            Token::OpenParen,
+            Token::Number("100".to_string()),
+            Token::Comma,
+            Token::String("db".to_string()),
+            Token::Comma,
+            Token::Number("10".to_string()),
+            Token::CloseParen,
+            Token::Semicolon,
+        ]
+    );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lexer_select() -> Result<()>{
+        let tokens = Lexer::new("select * from tbl;").peekable().collect::<Result<Vec<_>>>()?;
+        // println!("{:?}",tokens);
+
+        assert_eq!(tokens,vec![
+            Token::Keyword(Keyword::Select),
+            Token::Asterisk,
+            Token::Keyword(Keyword::From),
+            Token::Ident("tbl".to_string()),
+            Token::Semicolon
+        ]);
         Ok(())
     }
 }
