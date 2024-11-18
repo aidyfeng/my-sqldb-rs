@@ -61,9 +61,9 @@ impl<'a> Parser<'a> {
         self.next_expected(Token::OpenParen)?;
 
         //解析列信息
-        let mut colunm = Vec::<Column>::new();
+        let mut colunms = Vec::<Column>::new();
         loop {
-            
+            colunms.push(self.parse_ddl_column()?);
         }
 
     }
@@ -90,12 +90,33 @@ impl<'a> Parser<'a> {
                     self.next_expected(Token::Keyword(Keyword::Null))?;
                     column.nullable = Some(false)
                 },
-                Keyword::Default => todo!(),
+                Keyword::Default => column.default = Some(self.parse_expression()?),
                 k => return Err(Error::Parse(format!("[Parser] Unexpected keyword {}",k)))
             }
         }
 
         Ok(column)
+    }
+
+    fn parse_expression(&mut self) -> Result<ast::Expression>{
+        Ok(match self.next()? {
+            Token::Number(n) => {
+                if n.chars().all(|it| it.is_ascii_digit()){
+                    //整型
+                    ast::Consts::Integer(n.parse()?).into()
+                }else{
+                    //浮点型
+                    ast::Consts::Float(n.parse()?).into()
+                }
+            },
+            Token::String(v) => ast::Consts::String(v).into(),
+            Token::Keyword(Keyword::True) => ast::Consts::Boolean(true).into(),
+            Token::Keyword(Keyword::False) => ast::Consts::Boolean(false).into(),
+            Token::Keyword(Keyword::Null) => ast::Consts::Null.into(),
+            t => {
+                return Err(Error::Parse(format!("[Parser] Unexpected expression token {}",t)))
+            }
+        })
     }
 
     fn next_ident(&mut self) -> Result<String>{
