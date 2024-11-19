@@ -27,12 +27,20 @@ impl<'a> Parser<'a> {
      */
     pub fn parse(&mut self) -> Result<ast::Statement>{
         let stmt = self.parse_statement()?;
+        //期望sql结束后跟的是分号
+        self.next_expected(Token::Semicolon)?;
+        //分号后不能跟其他符号
+        if let Some(token) = self.peek()?{
+            return Err(Error::Parse(format!("[Parser] Unexpected token {}",token)))
+        }
         Ok(stmt)
     }
 
     fn parse_statement(&mut self) -> Result<ast::Statement>{
         match self.peek()? {
             Some(Token::Keyword(Keyword::Create)) => self.parse_ddl(),
+            Some(Token::Keyword(Keyword::Select)) => self.parse_select(),
+            Some(Token::Keyword(Keyword::Insert)) => self.parse_insert(),
             Some(t) => Err(Error::Parse(format!("[Parser] unexpected token {}",t))),
             None => Err(Error::Parse(format!("[Parser] unexpected end of input")))
         }
@@ -64,8 +72,13 @@ impl<'a> Parser<'a> {
         let mut colunms = Vec::<Column>::new();
         loop {
             colunms.push(self.parse_ddl_column()?);
+            if self.next_if_token(Token::Comma).is_none(){
+                break;
+            }
         }
 
+        self.next_expected(Token::CloseParen)?;
+        Ok(ast::Statement::CreateTable { name: table_name, columns: colunms })
     }
 
     fn parse_ddl_column(&mut self) -> Result<ast::Column>{
@@ -154,6 +167,47 @@ impl<'a> Parser<'a> {
 
     fn next_if_keywork(&mut self) -> Option<Token>{
         self.next_if(|it| matches!(it,Token::Keyword(_)))
+    }
+
+    fn next_if_token(&mut self,token:Token) -> Option<Token>{
+        self.next_if(|it| it == &token)
+    }
+    
+    fn parse_select(&mut self) -> Result<ast::Statement> {
+        self.next_expected(Token::Keyword(Keyword::Select))?;
+        self.next_expected(Token::Asterisk)?;
+        self.next_expected(Token::Keyword(Keyword::From))?;
+
+        let table_name = self.next_ident()?;
+        Ok(ast::Statement::Select { table_name: table_name })
+    }
+    
+    fn parse_insert(&mut self) -> Result<ast::Statement> {
+        self.next_expected(Token::Keyword(Keyword::Insert))?;
+        self.next_expected(Token::Keyword(Keyword::Into))?;
+
+        //表名
+        let table_name = self.next_ident()?;
+
+        //查看是否有指定列, 有则获取列名
+        let colunms = if self.next_if_token(Token::OpenParen).is_some(){
+            let mut cols = Vec::new();
+            loop {
+                cols.push(self.next_ident()?);
+                match self.next()? {
+                    Token::CloseParen => break,
+                    Token::Comma => {},
+                    token => return Err(Error::Parse(format!("[Parser] unexpected end of input")))
+                }
+            }
+
+            Some(cols)
+        }else{
+            None
+        };
+
+        //解析values信息
+        Ok(())
     }
 }
 
