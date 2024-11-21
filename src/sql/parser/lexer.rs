@@ -288,10 +288,9 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[cfg(test)]
 mod test {
-
-    use std::{result, vec};
-
+    
     use crate::{
         error::Result,
         sql::parser::lexer::{Keyword, Token},

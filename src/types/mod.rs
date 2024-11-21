@@ -1,4 +1,4 @@
-use crate::sql::parser::ast::{self, Consts, Expression};
+use crate::sql::parser::ast::{ Consts, Expression};
 
 #[derive(Debug,PartialEq)]
 pub enum DataType{

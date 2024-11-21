@@ -220,7 +220,7 @@ impl<'a> Parser<'a> {
                 match self.next()? {
                     Token::CloseParen => break,
                     Token::Comma => {}
-                    token => return Err(Error::Parse(format!("[Parser] unexpected end of input"))),
+                    _ => return Err(Error::Parse(format!("[Parser] unexpected end of input"))),
                 }
             }
 
@@ -241,7 +241,7 @@ impl<'a> Parser<'a> {
                 match self.next()? {
                     Token::CloseParen => break,
                     Token::Comma => {}
-                    token => return Err(Error::Parse(format!("[Parser] unexpected end of input"))),
+                    _ => return Err(Error::Parse(format!("[Parser] unexpected end of input"))),
                 }
             }
             values.push(exprs);
