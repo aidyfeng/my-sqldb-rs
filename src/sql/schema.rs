@@ -1,4 +1,4 @@
-use crate::types::{DataType, Value};
+use crate::sql::types::{DataType, Value};
 
 
 #[derive(Debug,PartialEq)]

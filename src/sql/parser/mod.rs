@@ -5,7 +5,7 @@ use lexer::{Keyword, Lexer, Token};
 
 use crate::{
     error::{Error, Result},
-    types::DataType,
+    sql::types::DataType,
 };
 
 pub mod ast;

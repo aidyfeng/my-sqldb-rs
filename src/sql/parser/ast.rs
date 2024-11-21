@@ -1,4 +1,4 @@
-use crate::types::DataType;
+use crate::sql::types::DataType;
 
 #[derive(Debug,PartialEq)]
 pub enum Statement{

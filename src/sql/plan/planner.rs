@@ -1,4 +1,4 @@
-use crate::{sql::{parser::ast, schema::{self, Table}}, types::Value};
+use crate::sql::{parser::ast, schema::{self, Table},types::Value};
 
 use super::{Node, Plan};
 
