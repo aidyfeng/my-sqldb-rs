@@ -14,7 +14,7 @@ pub mod lexer;
 /**
  * 解析器
  */
-struct Parser<'a> {
+pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
 

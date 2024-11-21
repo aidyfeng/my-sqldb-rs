@@ -34,8 +34,9 @@ impl Planner {
                         }
                     }).collect()
                  } },
-            ast::Statement::Insert { table_name, columns, values } => todo!(),
-            ast::Statement::Select { table_name } => todo!(),
+            ast::Statement::Insert { table_name, columns, values } => 
+                Node::Insert { table_name, columns: columns.unwrap_or_default(), values },
+            ast::Statement::Select { table_name } => Node::Scan { table_name } ,
         }
     }
 }

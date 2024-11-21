@@ -1,13 +1,13 @@
 use crate::types::{DataType, Value};
 
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub struct Table{
     pub name:String,
     pub columns:Vec<Column>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub struct Column{
     pub name:String,
     pub datatype:DataType,
