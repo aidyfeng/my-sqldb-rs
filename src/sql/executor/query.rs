@@ -1,3 +1,5 @@
+use crate::sql::engine::Transaction;
+
 use super::Executor;
 
 pub struct Scan {
@@ -10,8 +12,8 @@ impl Scan {
     }
 }
 
-impl Executor for Scan {
-    fn execute(&self) -> crate::error::Result<super::ResultSet> {
+impl<T:Transaction> Executor<T> for Scan {
+    fn execute(&self,txn:&mut T) -> crate::error::Result<super::ResultSet> {
         todo!()
     }
 }

@@ -4,18 +4,18 @@ use schema::CreateTable;
 
 use crate::error::Result;
 
-use super::{plan::Node, types::Row};
+use super::{engine::Transaction, plan::Node, types::Row};
 
-pub trait Executor {
-    fn execute(&self) -> Result<ResultSet>;
+pub trait Executor<T:Transaction> {
+    fn execute(&self,txn:&mut T) -> Result<ResultSet>;
 }
 
 mod mutation;
 mod schema;
 mod query;
 
-impl dyn Executor {
-    pub fn build(node: Node) -> Box<dyn Executor> {
+impl<T:Transaction> dyn Executor<T> {
+    pub fn build(node: Node) -> Box<dyn Executor<T>> {
         match node {
             Node::CreateTable { schema } => CreateTable::new(schema),
             Node::Insert {

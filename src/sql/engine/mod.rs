@@ -2,6 +2,7 @@ use crate::error::Result;
 
 use super::{executor::ResultSet, parser::Parser, plan::Plan, schema::Table, types::Row};
 
+mod kv;
 pub trait Engine: Clone {
     type Transaction: Transaction;
 
@@ -44,7 +45,7 @@ impl<E:Engine> Session<E> {
             stmt => {
                 let mut txn = self.engine.begin()?;
                 //构建plan, 执行sql语句
-                match Plan::build(stmt).execute(txn){
+                match Plan::build(stmt).execute(&mut txn){
                     Ok(result) => {
                         txn.commit()?;
                         Ok(result)

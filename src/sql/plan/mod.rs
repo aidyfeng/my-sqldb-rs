@@ -41,7 +41,7 @@ impl Plan {
     }
 
     pub fn execute<T: Transaction>(self, txn: &mut T) -> Result<ResultSet> {
-        <dyn Executor>::build(self.0).execute()
+        <dyn Executor<T>>::build(self.0).execute(txn)
     }
 }
 
