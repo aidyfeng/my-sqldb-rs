@@ -1,6 +1,8 @@
-use std::collections::{btree_map, BTreeMap};
+use std::{collections::{btree_map, BTreeMap}, ops::Bound};
 
 use crate::error::Result;
+
+use super::engine::EngineIterator;
 
 pub struct MemoryEngine {
     data: BTreeMap<Vec<u8>, Vec<u8>>,
@@ -15,51 +17,63 @@ impl MemoryEngine {
 }
 
 impl super::engine::Engine for MemoryEngine {
-    type EngineIterator ;
+    type EngineIterator<'a> = MemoryEnginIterator<'a>;
 
-    fn set(&mut self,key: Vec<u8>,value: Vec<u8>) -> Result<()> {
-        todo!()
+    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
+        self.data.insert(key, value);
+        Ok(())
     }
 
-    fn get(&mut self,key: Vec<u8>) -> Result<Option<Vec<u8>>> {
-        todo!()
+    fn get(&mut self, key: Vec<u8>) -> Result<Option<Vec<u8>>> {
+        Ok(self.data.get(&key).cloned())
     }
 
-    fn delete(&mut self,key : Vec<u8>) -> Result<()> {
-        todo!()
+    fn delete(&mut self, key: Vec<u8>) -> Result<()> {
+        self.data.remove(&key);
+        Ok(())
     }
 
-    fn scan(&mut self,range: impl std::ops::RangeBounds<Vec<u8>>) -> Self::EngineIterator {
-        todo!()
+    fn scan(&mut self, range: impl std::ops::RangeBounds<Vec<u8>>) -> Self::EngineIterator<'_> {
+        MemoryEnginIterator{
+            inner : self.data.range(range)
+        }
     }
-    
-    fn scan_prefix(&mut self,prefix:Vec<u8>) -> Self::EngineIterator{
-        std::todo!()
+
+    fn scan_prefix(&mut self, prefix: Vec<u8>) -> Self::EngineIterator<'_> {
+        let start = Bound::Included(prefix.clone());
+        let mut bound_prefix = prefix.clone();
+        if let Some(it) = bound_prefix.iter_mut().last(){
+            *it += 1;
+        }
+        let last = Bound::Excluded(bound_prefix);
+
+        self.scan((start,last))
     }
 }
 
-pub struct MemoryEnginIterator<'a>{
-    inner : btree_map::Range<'a,Vec<u8>,Vec<u8>>
+pub struct MemoryEnginIterator<'a> {
+    inner: btree_map::Range<'a, Vec<u8>, Vec<u8>>,
 }
 
-impl<'a>  MemoryEnginIterator<'a>{
-    
+impl<'a> MemoryEnginIterator<'a> {
+    fn map(item: (&Vec<u8>, &Vec<u8>)) -> <Self as Iterator>::Item {
+        let (k, v) = item;
+        Ok((k.clone(), v.clone()))
+    }
 }
 
 impl<'a> Iterator for MemoryEnginIterator<'a> {
-    type Item = Result<(Vec<u8>,Vec<u8>)>;
+    type Item = Result<(Vec<u8>, Vec<u8>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        self.inner.next().map(Self::map)
     }
 }
 
-impl<'a> DoubleEndedIterator for MemoryEnginIterator<'a>{
+impl<'a> DoubleEndedIterator for MemoryEnginIterator<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        todo!()
+        self.inner.next_back().map(Self::map)
     }
 }
 
-impl<'a> super::engine::EngineIterator for MemoryEnginIterator<'a>{
-    
-}
+impl<'a> EngineIterator for MemoryEnginIterator<'a> {}

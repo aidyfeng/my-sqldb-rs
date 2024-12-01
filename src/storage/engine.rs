@@ -7,7 +7,7 @@ use crate::error::Result;
  */
 pub trait Engine {
 
-    type EngineIterator : EngineIterator;
+    type EngineIterator<'a> : EngineIterator where Self: 'a;
     /**
      * 设置 key,value
      */
@@ -26,12 +26,12 @@ pub trait Engine {
     /**
      * 扫描
      */
-    fn scan(&mut self,range: impl RangeBounds<Vec<u8>>) -> Self::EngineIterator;
+    fn scan(&mut self,range: impl RangeBounds<Vec<u8>>) -> Self::EngineIterator<'_>;
 
     /**
      * 前缀扫描
      */
-    fn scan_prefix(&mut self,prefix:Vec<u8>) -> Self::EngineIterator{
+    fn scan_prefix(&mut self,prefix:Vec<u8>) -> Self::EngineIterator<'_>{
         todo!()
     }
 }
