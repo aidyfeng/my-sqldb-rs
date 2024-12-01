@@ -1,4 +1,7 @@
-use std::{collections::{btree_map, BTreeMap}, ops::Bound};
+use std::{
+    collections::{btree_map, BTreeMap},
+    ops::Bound,
+};
 
 use crate::error::Result;
 
@@ -34,20 +37,9 @@ impl super::engine::Engine for MemoryEngine {
     }
 
     fn scan(&mut self, range: impl std::ops::RangeBounds<Vec<u8>>) -> Self::EngineIterator<'_> {
-        MemoryEnginIterator{
-            inner : self.data.range(range)
+        MemoryEnginIterator {
+            inner: self.data.range(range),
         }
-    }
-
-    fn scan_prefix(&mut self, prefix: Vec<u8>) -> Self::EngineIterator<'_> {
-        let start = Bound::Included(prefix.clone());
-        let mut bound_prefix = prefix.clone();
-        if let Some(it) = bound_prefix.iter_mut().last(){
-            *it += 1;
-        }
-        let last = Bound::Excluded(bound_prefix);
-
-        self.scan((start,last))
     }
 }
 
