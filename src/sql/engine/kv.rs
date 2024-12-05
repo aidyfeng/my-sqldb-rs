@@ -1,12 +1,12 @@
-use crate::{error::Result, storage};
+use crate::{error::Result, storage::{self, engine::Engine as StorageEngin}};
 
 use super::{Engine, Transaction};
 
-pub struct KVEngine {
-    pub kv: storage::Mvcc,
+pub struct KVEngine<E: StorageEngin> {
+    pub kv: storage::mvcc::Mvcc<E>,
 }
 
-impl Clone for KVEngine {
+impl<E: StorageEngin> Clone for KVEngine<E> {
     fn clone(&self) -> Self {
         Self {
             kv: self.kv.clone(),
@@ -14,8 +14,8 @@ impl Clone for KVEngine {
     }
 }
 
-impl Engine for KVEngine {
-    type Transaction = KVTransaction;
+impl<E: StorageEngin> Engine for KVEngine<E> {
+    type Transaction = KVTransaction<E>;
 
     fn begin(&self) -> Result<Self::Transaction> {
         Ok(Self::Transaction::new(self.kv.begin()?))
@@ -23,17 +23,17 @@ impl Engine for KVEngine {
 }
 
 //KVTransaction 定义,实际上对存储引擎MvccTransaction的封装
-pub struct KVTransaction {
-    txn: storage::MvccTransaction,
+pub struct KVTransaction<E:StorageEngin> {
+    txn: storage::mvcc::MvccTransaction<E>,
 }
 
-impl KVTransaction {
-    pub fn new(txn: storage::MvccTransaction) -> Self {
+impl<E:StorageEngin> KVTransaction<E> {
+    pub fn new(txn: storage::mvcc::MvccTransaction<E>) -> Self {
         Self { txn }
     }
 }
 
-impl Transaction for KVTransaction {
+impl<E:StorageEngin> Transaction for KVTransaction<E> {
     fn commit(&self) -> Result<()> {
         todo!()
     }

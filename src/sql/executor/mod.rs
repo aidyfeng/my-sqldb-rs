@@ -7,7 +7,7 @@ use crate::error::Result;
 use super::{engine::Transaction, plan::Node, types::Row};
 
 pub trait Executor<T:Transaction> {
-    fn execute(&self,txn:&mut T) -> Result<ResultSet>;
+    fn execute(self : Box<Self>,txn:&mut T) -> Result<ResultSet>;
 }
 
 mod mutation;
