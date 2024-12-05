@@ -1,4 +1,6 @@
-use crate::{error::Result, storage::{self, engine::Engine as StorageEngin}};
+use serde::{de::value, Deserialize, Serialize};
+
+use crate::{error::{Error, Result}, storage::{self, engine::Engine as StorageEngin}};
 
 use super::{Engine, Transaction};
 
@@ -51,10 +53,33 @@ impl<E:StorageEngin> Transaction for KVTransaction<E> {
     }
 
     fn create_table(&mut self, table: crate::sql::schema::Table) -> Result<()> {
-        todo!()
+        //判断表是否已经存在
+        if self.get_table(table.name.clone())?.is_some(){
+            return Err(Error::Internal(format!("table {} has already exists",table.name)))
+        }
+
+        //判断表的有效性
+        if table.columns.is_empty(){
+            return Err(Error::Internal(format!("table {} has no columns",table.name)))
+        }
+
+        let key = Key::Table(table.name.clone());
+        let value = bincode::serialize(&table)?;
+
+        self.txn.set(bincode::serialize(&key)?, value)
     }
 
     fn get_table(&self, table_name: String) -> Result<Option<crate::sql::schema::Table>> {
-        todo!()
+        let key = Key::Table(table_name);
+        let v = self.txn
+            .get(bincode::serialize(&key)?)?
+            .map(|it| bincode::deserialize(&it)).transpose()?;
+        Ok(v)
     }
+}
+
+#[derive(Debug,Serialize,Deserialize)]
+enum Key {
+    Table(String),
+    Row(String,String)
 }
