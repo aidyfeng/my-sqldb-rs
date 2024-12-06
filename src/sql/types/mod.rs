@@ -10,7 +10,7 @@ pub enum DataType{
     Boolean
 }
 
-#[derive(Debug,PartialEq,Serialize,Deserialize)]
+#[derive(Debug,PartialEq,Serialize,Deserialize,Clone)]
 pub enum Value{
     Null,
     Boolean(bool),
