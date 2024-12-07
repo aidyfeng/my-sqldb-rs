@@ -67,6 +67,6 @@ impl<E: Engine> MvccTransaction<E> {
 }
 
 pub struct ScanResult {
-    key:Vec<u8>,
-    value:Vec<u8>
+    pub key:Vec<u8>,
+    pub value:Vec<u8>
 }

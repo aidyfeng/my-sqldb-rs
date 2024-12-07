@@ -28,6 +28,7 @@ impl<T:Transaction> dyn Executor<T> {
     }
 }
 
+#[derive(Debug)]
 pub enum ResultSet {
     CreateTable {
         table_name: String,
@@ -37,6 +38,6 @@ pub enum ResultSet {
     },
     Scan {
         columns: Vec<String>,
-        value: Vec<Row>,
+        rows: Vec<Row>,
     },
 }

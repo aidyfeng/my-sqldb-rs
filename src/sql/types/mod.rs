@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::sql::parser::ast::{ Consts, Expression};
+use crate::{error::Result, sql::parser::ast::{ Consts, Expression}};
 
 #[derive(Debug,PartialEq,Serialize,Deserialize)]
 pub enum DataType{
@@ -27,6 +27,16 @@ impl Value{
             Expression::Consts(Consts::Float(f)) => Self::Float(f),
             Expression::Consts(Consts::Integer(i)) => Self::Integer(i),
             Expression::Consts(Consts::String(s)) => Self::String(s),
+        }
+    }
+
+    pub fn datatype(&self) -> Option<DataType>{
+        match self {
+            Self::Null => None,
+            Self::Boolean(_) => Some(DataType::Boolean),
+            Self::Float(_) => Some(DataType::Float),
+            Self::Integer(_) => Some(DataType::Integer),
+            Self::String(_) => Some(DataType::String)
         }
     }
 }
