@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     fs::File,
-    io::{BufWriter, Seek, Write},
+    io::{BufWriter, Read, Seek, Write},
 };
 
 use crate::error::Result;
@@ -86,7 +86,12 @@ impl Log {
     }
 
     fn read_value(&mut self, offset: u64, size: u32) -> Result<Vec<u8>> {
-        todo!()
+        //跳转到偏移量位置
+        self.file.seek(std::io::SeekFrom::Start(offset))?;
+        let mut buffer = vec![0; size as usize];
+        //读取数据到buffer
+        self.file.read_exact(&mut buffer)?;
+        Ok(buffer)
     }
 }
 
