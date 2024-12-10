@@ -1,8 +1,11 @@
 use std::{
     collections::BTreeMap,
-    fs::File,
-    io::{BufWriter, Read, Seek, Write},
+    fs::{self, File, OpenOptions},
+    io::{BufReader, BufWriter, Read, Seek, Write},
+    path::PathBuf,
 };
+
+use fs4::fs_std::FileExt;
 
 use crate::error::Result;
 
@@ -17,12 +20,21 @@ pub type KeyDir = BTreeMap<Vec<u8>, (u64, u32)>;
 
 const LOG_HEADER_SIZE: u32 = 8;
 
-pub struct DistEngine {
+pub struct DiskEngine {
     keydir: KeyDir,
     log: Log,
 }
 
-impl Engine for DistEngine {
+impl DiskEngine {
+    fn new(file_path: PathBuf) -> Result<Self> {
+        let log = Log::new(file_path)?;
+        //从log恢复keydir
+
+        todo!()
+    }
+}
+
+impl Engine for DiskEngine {
     type EngineIterator<'a> = DiskEngineIterator;
 
     fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
@@ -66,6 +78,36 @@ struct Log {
 }
 
 impl Log {
+    fn new(file_path: PathBuf) -> Result<Self> {
+        //如果目录不存在则创建
+        if let Some(dir) = file_path.parent() {
+            if !dir.exists() {
+                fs::create_dir_all(&dir)?;
+            }
+        }
+
+        //打开文件
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(&file_path)?;
+
+        //加文件锁,保证只能同时只能有一个服务使用
+        file.try_lock_exclusive()?;
+
+        Ok(Self { file })
+    }
+
+    fn build_keydir(&mut self) -> Result<KeyDir> {
+        let keydir = KeyDir::new();
+        let mut buf_reader = BufReader::new(&self.file);
+
+        loop {
+            
+        }
+    }
+
     fn write_entry(&mut self, key: &Vec<u8>, value: Option<&Vec<u8>>) -> Result<(u64, u32)> {
         //将文件偏移量移动到文件末尾
         let offset = self.file.seek(std::io::SeekFrom::End(0))?;
@@ -92,6 +134,25 @@ impl Log {
         //读取数据到buffer
         self.file.read_exact(&mut buffer)?;
         Ok(buffer)
+    }
+
+    fn read_entry(buf_reader: &mut BufReader<&File>, offset: u64) -> Result<(Vec<u8>, i32)> {
+        buf_reader.seek(std::io::SeekFrom::Start(offset));
+        let mut len_buf = [0; 4];
+
+        //读取key_size
+        buf_reader.read_exact(&mut len_buf);
+        let key_size = u32::from_be_bytes(len_buf);
+
+        //读取value_size
+        buf_reader.read_exact(&mut len_buf);
+        let value_size = i32::from_be_bytes(len_buf);
+
+        //读取key
+        let mut key = vec![0; key_size as usize];
+        buf_reader.read_exact(&mut key);
+
+        Ok((key, value_size))
     }
 }
 
