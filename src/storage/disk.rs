@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
-    intrinsics::logf64,
     io::{BufReader, BufWriter, Read, Seek, Write},
     path::PathBuf,
 };
