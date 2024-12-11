@@ -1,11 +1,13 @@
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
+    intrinsics::logf64,
     io::{BufReader, BufWriter, Read, Seek, Write},
     path::PathBuf,
 };
 
 use fs4::fs_std::FileExt;
+use serde::de::value;
 
 use crate::error::Result;
 
@@ -100,12 +102,35 @@ impl Log {
     }
 
     fn build_keydir(&mut self) -> Result<KeyDir> {
-        let keydir = KeyDir::new();
+        let mut keydir = KeyDir::new();
+        let file_len = self.file.metadata()?.len();
         let mut buf_reader = BufReader::new(&self.file);
 
+        let mut offset = 0;
         loop {
-            
+            if offset >= file_len {
+                break;
+            }
+
+            let (key, value_size) = Self::read_entry(&mut buf_reader, offset)?;
+
+            let key_size = key.len() as u64;
+            if value_size == -1 {
+                keydir.remove(&key);
+                offset += LOG_HEADER_SIZE as u64 + key_size;
+            } else {
+                keydir.insert(
+                    key,
+                    (
+                        offset + LOG_HEADER_SIZE as u64 + key_size,
+                        value_size as u32,
+                    ),
+                );
+                offset += LOG_HEADER_SIZE as u64 + key_size + value_size as u64;
+            }
         }
+
+        Ok(keydir)
     }
 
     fn write_entry(&mut self, key: &Vec<u8>, value: Option<&Vec<u8>>) -> Result<(u64, u32)> {
