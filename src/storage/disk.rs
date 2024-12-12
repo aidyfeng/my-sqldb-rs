@@ -1,8 +1,9 @@
 use std::{
     collections::BTreeMap,
-    fs::{self, File, OpenOptions},
+    fs::{self, rename, File, OpenOptions},
     io::{BufReader, BufWriter, Read, Seek, Write},
     path::PathBuf,
+    result,
 };
 
 use fs4::fs_std::FileExt;
@@ -27,11 +28,50 @@ pub struct DiskEngine {
 }
 
 impl DiskEngine {
-    fn new(file_path: PathBuf) -> Result<Self> {
-        let log = Log::new(file_path)?;
+    pub fn new(file_path: PathBuf) -> Result<Self> {
+        let mut log = Log::new(file_path)?;
         //从log恢复keydir
+        let keydir = log.build_keydir()?;
 
-        todo!()
+        Ok(Self { keydir, log })
+    }
+
+    pub fn new_compact(file_path: PathBuf) -> Result<Self> {
+        let mut eng = Self::new(file_path)?;
+        eng.compact()?;
+        Ok(eng)
+    }
+
+    fn compact(&mut self) -> Result<()> {
+        //新打开一个临时的日志文件
+        let mut new_file_path = self.log.file_path.clone();
+        new_file_path.set_extension("compact");
+        let mut new_log = Log::new(new_file_path)?;
+
+        let mut new_keydir = KeyDir::new();
+
+        //重读数据到临时文件中
+        for (key, (offset, value_size)) in self.keydir.iter() {
+            //读取value
+            let value = self.log.read_value(*offset, *value_size)?;
+            let (new_offset, new_size) = new_log.write_entry(key, Some(&value))?;
+
+            new_keydir.insert(
+                key.clone(),
+                (
+                    new_offset + new_size as u64 - *value_size as u64,
+                    *value_size,
+                ),
+            );
+        }
+
+        //将临时文件更改为正式文件
+        rename(&new_log.file_path, &self.log.file_path)?;
+        new_log.file_path = self.log.file_path.clone();
+        self.keydir = new_keydir;
+        self.log = new_log;
+
+        Ok(())
     }
 }
 
@@ -75,6 +115,7 @@ impl Engine for DiskEngine {
 }
 
 struct Log {
+    file_path: PathBuf,
     file: File,
 }
 
@@ -97,7 +138,7 @@ impl Log {
         //加文件锁,保证只能同时只能有一个服务使用
         file.try_lock_exclusive()?;
 
-        Ok(Self { file })
+        Ok(Self { file_path, file })
     }
 
     fn build_keydir(&mut self) -> Result<KeyDir> {
@@ -161,20 +202,20 @@ impl Log {
     }
 
     fn read_entry(buf_reader: &mut BufReader<&File>, offset: u64) -> Result<(Vec<u8>, i32)> {
-        buf_reader.seek(std::io::SeekFrom::Start(offset));
+        buf_reader.seek(std::io::SeekFrom::Start(offset))?;
         let mut len_buf = [0; 4];
 
         //读取key_size
-        buf_reader.read_exact(&mut len_buf);
+        buf_reader.read_exact(&mut len_buf)?;
         let key_size = u32::from_be_bytes(len_buf);
 
         //读取value_size
-        buf_reader.read_exact(&mut len_buf);
+        buf_reader.read_exact(&mut len_buf)?;
         let value_size = i32::from_be_bytes(len_buf);
 
         //读取key
         let mut key = vec![0; key_size as usize];
-        buf_reader.read_exact(&mut key);
+        buf_reader.read_exact(&mut key)?;
 
         Ok((key, value_size))
     }
@@ -197,3 +238,11 @@ impl DoubleEndedIterator for DiskEngineIterator {
 }
 
 impl EngineIterator for DiskEngineIterator {}
+
+#[test]
+fn test_disk_engine_start() -> Result<()> {
+    // let eng = DiskEngine::new(PathBuf::from("/tmp/sqldb-log"))?;
+    let eng = DiskEngine::new_compact(PathBuf::from("/tmp/sqldb-log"))?;
+
+    Ok(())
+}
