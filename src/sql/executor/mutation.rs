@@ -1,6 +1,4 @@
-use std::{collections::HashMap, result};
-
-use serde::de::value;
+use std::collections::HashMap;
 
 use crate::{
     error::{Error, Result},
@@ -61,40 +59,35 @@ fn pad_row(table: &Table, row: &Row) -> Result<Row> {
 //insert tbl(d,c) values(1,2);
 //a    b    c    d
 //          2    1
-fn make_row(table:&Table,column:&Vec<String>,values:&Row) -> Result<Row>{
+fn make_row(table: &Table, column: &Vec<String>, values: &Row) -> Result<Row> {
     //判断列数是否和value数一致
     if column.len() != values.len() {
-        return Err(Error::Internal(format!(
-            "columns and values num mismatch"
-        )));
+        return Err(Error::Internal(format!("columns and values num mismatch")));
     }
 
     let mut inputs = HashMap::new();
-    for (i,column_name) in column.iter().enumerate() {
+    for (i, column_name) in column.iter().enumerate() {
         inputs.insert(column_name, values[i].clone());
     }
 
     let mut results = Vec::new();
     for col in &table.columns {
-
-        if let Some(value) = inputs.get(&col.name){
+        if let Some(value) = inputs.get(&col.name) {
             results.push(value.clone());
-        }else if let Some(value) = &col.default{
+        } else if let Some(value) = &col.default {
             results.push(value.clone());
-        }else{
+        } else {
             return Err(Error::Internal(format!(
-                "not value given for the column {}",col.name
+                "not value given for the column {}",
+                col.name
             )));
         }
-        
     }
 
     Ok(results)
 }
 
 impl<T: Transaction> Executor<T> for Insert {
-
-
     fn execute(self: Box<Self>, txn: &mut T) -> Result<ResultSet> {
         let mut count = 0;
 
@@ -110,12 +103,12 @@ impl<T: Transaction> Executor<T> for Insert {
             let insert_row = if self.columns.is_empty() {
                 pad_row(&table, &row)?
                 //如果没有指定插入的列
-            }else{
+            } else {
                 //指定插入的列,需要对value信息进行整理
                 make_row(&table, &self.columns, &row)?
             };
             txn.create_row(self.table_name.clone(), insert_row)?;
-            count+=1;
+            count += 1;
         }
 
         Ok(ResultSet::Insert { count })

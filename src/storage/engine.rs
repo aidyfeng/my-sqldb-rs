@@ -45,11 +45,11 @@ pub trait EngineIterator: DoubleEndedIterator<Item = Result<(Vec<u8>, Vec<u8>)>>
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Bound, vec};
+    use std::{fs, ops::Bound, path::PathBuf, vec};
 
     use crate::{
         error::Result,
-        storage::{engine::Engine, memory::MemoryEngine},
+        storage::{disk::DiskEngine, engine::Engine, memory::MemoryEngine},
     };
 
     //测试点读操作
@@ -138,6 +138,19 @@ mod tests {
         test_point_opt(MemoryEngine::new())?;
         test_scan(MemoryEngine::new())?;
         test_scan_prefix(MemoryEngine::new())?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_dist() -> Result<()> {
+        test_point_opt(DiskEngine::new(PathBuf::from("/tmp/sqldb/db.log"))?)?;
+        fs::remove_dir_all(PathBuf::from("/tmp/sqldb"))?;
+
+        test_scan(DiskEngine::new(PathBuf::from("/tmp/sqldb/db.log"))?)?;
+        fs::remove_dir_all(PathBuf::from("/tmp/sqldb"))?;
+
+        test_scan_prefix(DiskEngine::new(PathBuf::from("/tmp/sqldb/db.log"))?)?;
+        fs::remove_dir_all(PathBuf::from("/tmp/sqldb"))?;
         Ok(())
     }
 }

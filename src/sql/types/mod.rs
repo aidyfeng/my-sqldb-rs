@@ -1,26 +1,26 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{error::Result, sql::parser::ast::{ Consts, Expression}};
+use crate::sql::parser::ast::{Consts, Expression};
 
-#[derive(Debug,PartialEq,Serialize,Deserialize)]
-pub enum DataType{
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub enum DataType {
     Integer,
     String,
     Float,
-    Boolean
+    Boolean,
 }
 
-#[derive(Debug,PartialEq,Serialize,Deserialize,Clone)]
-pub enum Value{
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum Value {
     Null,
     Boolean(bool),
     Integer(i64),
     Float(f64),
-    String(String)
+    String(String),
 }
 
-impl Value{
-    pub fn from_expression(expr : Expression) -> Self{
+impl Value {
+    pub fn from_expression(expr: Expression) -> Self {
         match expr {
             Expression::Consts(Consts::Null) => Self::Null,
             Expression::Consts(Consts::Boolean(bool)) => Self::Boolean(bool),
@@ -30,13 +30,13 @@ impl Value{
         }
     }
 
-    pub fn datatype(&self) -> Option<DataType>{
+    pub fn datatype(&self) -> Option<DataType> {
         match self {
             Self::Null => None,
             Self::Boolean(_) => Some(DataType::Boolean),
             Self::Float(_) => Some(DataType::Float),
             Self::Integer(_) => Some(DataType::Integer),
-            Self::String(_) => Some(DataType::String)
+            Self::String(_) => Some(DataType::String),
         }
     }
 }

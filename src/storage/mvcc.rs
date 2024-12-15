@@ -1,4 +1,4 @@
-use std::{iter, sync::{Arc, Mutex}};
+use std::sync::{Arc, Mutex};
 
 use crate::error::Result;
 
@@ -59,14 +59,14 @@ impl<E: Engine> MvccTransaction<E> {
         let mut eng = self.engine.lock()?;
         let mut iter = eng.scan_prefix(prefix);
         let mut result = Vec::new();
-        while let Some((key,value)) = iter.next().transpose()?{
-            result.push(ScanResult{key,value});
+        while let Some((key, value)) = iter.next().transpose()? {
+            result.push(ScanResult { key, value });
         }
         Ok(result)
     }
 }
 
 pub struct ScanResult {
-    pub key:Vec<u8>,
-    pub value:Vec<u8>
+    pub key: Vec<u8>,
+    pub value: Vec<u8>,
 }

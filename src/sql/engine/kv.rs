@@ -1,4 +1,4 @@
-use serde::{de::value, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, Result},
@@ -20,9 +20,11 @@ impl<E: StorageEngin> Clone for KVEngine<E> {
     }
 }
 
-impl<E:StorageEngin> KVEngine<E> {
-    pub fn new(engine : E) -> Self{
-        Self { kv: storage::mvcc::Mvcc::new(engine) }
+impl<E: StorageEngin> KVEngine<E> {
+    pub fn new(engine: E) -> Self {
+        Self {
+            kv: storage::mvcc::Mvcc::new(engine),
+        }
     }
 }
 
@@ -59,12 +61,22 @@ impl<E: StorageEngin> Transaction for KVTransaction<E> {
 
         //校验行可靠性
         for (i, col) in table.columns.iter().enumerate() {
-           match row[i].datatype() {
-            None if col.nullable => {},
-            None => return Err(Error::Internal(format!("column {} can not be null",col.name))),
-            Some(datatype) if datatype!=col.datatype => return Err(Error::Internal(format!("column {} type mismatch",col.name))),
-            _ => {}
-           }
+            match row[i].datatype() {
+                None if col.nullable => {}
+                None => {
+                    return Err(Error::Internal(format!(
+                        "column {} can not be null",
+                        col.name
+                    )))
+                }
+                Some(datatype) if datatype != col.datatype => {
+                    return Err(Error::Internal(format!(
+                        "column {} type mismatch",
+                        col.name
+                    )))
+                }
+                _ => {}
+            }
         }
 
         //存放数据
@@ -127,19 +139,19 @@ enum Key {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum KeyPrefix{
+enum KeyPrefix {
     Table,
-    Row(String)
+    Row(String),
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use crate::{error::Result, sql::engine::Engine, storage::memory::MemoryEngine};
 
     use super::KVEngine;
 
     #[test]
-    fn test_create_table() -> Result<()>{
+    fn test_create_table() -> Result<()> {
         let kvengine = KVEngine::new(MemoryEngine::new());
         let mut s = kvengine.session()?;
         s.execute("create table t1 (a int , b text default 'vv', c integer default 100);")?;
@@ -147,9 +159,7 @@ mod tests{
         s.execute("insert into t1 values(2,'b',2);")?;
         s.execute("insert into t1(a) values(3);")?;
         let v1 = s.execute("select * from t1;")?;
-        println!("{:?}",v1);
+        println!("{:?}", v1);
         Ok(())
-
     }
-
 }
