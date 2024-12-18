@@ -1,6 +1,9 @@
-use std::sync::{Arc, Mutex};
+use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
-use crate::error::Result;
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use super::engine::Engine;
 
@@ -32,21 +35,42 @@ impl<E: Engine> Mvcc<E> {
 
 pub struct MvccTransaction<E: Engine> {
     engine: Arc<Mutex<E>>,
+    state: TransactionState,
 }
 
-#[derive(Debug,Serialize,Deserialize)]
-pub enum MvccKey{
+pub struct TransactionState {
+    //当前版本号
+    pub version: Version,
+
+    //当前事务下活跃事务列表
+    pub active_versions: HashSet<Version>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum MvccKey {
     NextVersion,
-    TxnActive(Version)
+    TxnActive(Version),
 }
 
-impl MvccKey{
-    pub fn encode(&self) -> Vec<u8>{
+impl MvccKey {
+    pub fn encode(&self) -> Vec<u8> {
         bincode::serialize(&self).unwrap()
     }
 
     pub fn decode(data: Vec<u8>) -> Result<MvccKey> {
         Ok(bincode::deserialize(&data)?)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum MvccKeyPrefix {
+    NextVersion,
+    TxnActive,
+}
+
+impl MvccKeyPrefix {
+    pub fn encode(&self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
     }
 }
 
@@ -60,15 +84,24 @@ impl<E: Engine> MvccTransaction<E> {
             None => 1,
         };
 
-        engine.set(MvccKey::NextVersion.encode(),bincode::serialize(&(next_version + 1))?)?;
+        engine.set(
+            MvccKey::NextVersion.encode(),
+            bincode::serialize(&(next_version + 1))?,
+        )?;
 
         //获取当前活跃的事务列表
+        let active_versions = Self::scan_active(&mut engine)?;
 
         //当前事务加入到活跃事务列表
-        engine.set(MvccKey::TxnActive(next_version).encode(),vec![])?;
+        engine.set(MvccKey::TxnActive(next_version).encode(), vec![])?;
 
-        todo!()
-
+        Ok(Self {
+            engine: eng.clone(),
+            state: TransactionState {
+                version: next_version,
+                active_versions,
+            },
+        })
     }
 
     pub fn commit(&self) -> Result<()> {
@@ -97,6 +130,26 @@ impl<E: Engine> MvccTransaction<E> {
             result.push(ScanResult { key, value });
         }
         Ok(result)
+    }
+
+    fn scan_active(engine: &mut MutexGuard<E>) -> Result<HashSet<Version>> {
+        let mut active_versions = HashSet::new();
+        let mut iter = engine.scan_prefix(MvccKeyPrefix::TxnActive.encode());
+        while let Some((key, _)) = iter.next().transpose()? {
+            match MvccKey::decode(key.clone())? {
+                MvccKey::TxnActive(version) => {
+                    active_versions.insert(version);
+                }
+                _ => {
+                    return Err(Error::Internal(format!(
+                        "unexpected key: {:?}",
+                        String::from_utf8(key)
+                    )))
+                }
+            }
+        }
+
+        Ok(active_versions)
     }
 }
 
