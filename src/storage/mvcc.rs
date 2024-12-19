@@ -46,10 +46,23 @@ pub struct TransactionState {
     pub active_versions: HashSet<Version>,
 }
 
+impl TransactionState {
+    fn is_visible(&self,version:Version) -> bool {
+        if self.active_versions.contains(&version) {
+            false
+        }else {
+            version <= self.version
+        }
+    }
+}
+
+
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum MvccKey {
     NextVersion,
     TxnActive(Version),
+    TxnWrite(Version,Vec<u8>),
     Version(Vec<u8>, Version),
 }
 
@@ -173,7 +186,9 @@ impl<E: Engine> MvccTransaction<E> {
             match MvccKey::decode(k.clone())? {
                 MvccKey::Version(_, version) => {
                     //检测version是否可见
-                    
+                    if !self.state.is_visible(version) {
+                        return Err(Error::WriteConflict);
+                    }
                 },
                 _ => {
                     return Err(Error::Internal(format!(
@@ -182,8 +197,12 @@ impl<E: Engine> MvccTransaction<E> {
                     )))
                 },
             }
-
         }
+
+        //记录这个version,写入哪些key, 用于回滚事务
+        engine.set(MvccKey::TxnWrite(self.state.version,key.clone()).encode(), vec![])?;
+
+        //写入实际的key,value数据
 
         Ok(())
 

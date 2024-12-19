@@ -8,7 +8,8 @@ pub type Result<T> = std::result::Result<T,Error>;
 #[derive(Debug,Clone, PartialEq)]
 pub enum Error{
     Parse(String),
-    Internal(String)
+    Internal(String),
+    WriteConflict
 }
 
 impl From<ParseFloatError> for Error {
