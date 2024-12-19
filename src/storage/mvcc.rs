@@ -2,10 +2,10 @@ use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard}, u64,
 };
 
-use super::engine::Engine;
+use super::engine::{self, Engine};
 
 pub type Version = u64;
 
@@ -50,7 +50,10 @@ pub struct TransactionState {
 pub enum MvccKey {
     NextVersion,
     TxnActive(Version),
+    Version(Vec<u8>, Version),
 }
+
+//Version key1-101, key2-102
 
 impl MvccKey {
     pub fn encode(&self) -> Vec<u8> {
@@ -150,6 +153,41 @@ impl<E: Engine> MvccTransaction<E> {
         }
 
         Ok(active_versions)
+    }
+
+    fn write(&self, key: Vec<u8>, value: Option<Vec<u8>>) -> Result<()> {
+        //获取存储引擎
+        let mut engine = self.engine.lock()?;
+
+        //检测冲突
+        //当前活跃列表 3  4  5
+        //当前事务 6
+        //key1-3 key2-4 key3-5
+        let from = MvccKey::Version(key.clone(), self.state.active_versions.iter().min().copied().unwrap_or(self.state.version +1)).encode();
+        let to = MvccKey::Version(key.clone(), u64::MAX).encode();
+        //只需判断最后一个版本号
+        //1. key按顺序排列, 扫描出的结果从小到大
+        //2. 加入有的事务修改了数据, 比如10, 如果当前事务6修改, 那么冲突了
+        //3. 如果是当前事务修改了这个key,比如4,那么事务5就不可能修改这个key
+        if let Some((k,_)) = engine.scan(from..=to).last().transpose()? {
+            match MvccKey::decode(k.clone())? {
+                MvccKey::Version(_, version) => {
+                    //检测version是否可见
+                    
+                },
+                _ => {
+                    return Err(Error::Internal(format!(
+                        "unexpected key: {:?}",
+                        String::from_utf8(k)
+                    )))
+                },
+            }
+
+        }
+
+        Ok(())
+
+
     }
 }
 
