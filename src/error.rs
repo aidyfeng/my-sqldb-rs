@@ -1,15 +1,20 @@
-use std::{num::{ParseFloatError, ParseIntError}, sync::PoisonError};
+use std::{
+    fmt::{self, Display},
+    num::{ParseFloatError, ParseIntError},
+    sync::PoisonError,
+};
 
 use bincode::ErrorKind;
+use serde::{de, ser};
 
 //自定义result 类型
-pub type Result<T> = std::result::Result<T,Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug,Clone, PartialEq)]
-pub enum Error{
+#[derive(Debug, Clone, PartialEq)]
+pub enum Error {
     Parse(String),
     Internal(String),
-    WriteConflict
+    WriteConflict,
 }
 
 impl From<ParseFloatError> for Error {
@@ -39,5 +44,29 @@ impl From<Box<ErrorKind>> for Error {
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Error::Internal(value.to_string())
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl ser::Error for Error {
+    fn custom<T: Display>(msg: T) -> Self {
+        Error::Internal(msg.to_string())
+    }
+}
+
+impl de::Error for Error {
+    fn custom<T: Display>(msg: T) -> Self {
+        Error::Internal(msg.to_string())
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Parse(err) => write!(f, "parse error {}", err),
+            Error::Internal(err) => write!(f, "internal error {}", err),
+            Error::WriteConflict => write!(f, "write conflict,try transaction"),
+        }
     }
 }

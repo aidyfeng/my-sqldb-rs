@@ -63,7 +63,7 @@ pub enum MvccKey {
     NextVersion,
     TxnActive(Version),
     TxnWrite(Version, Vec<u8>),
-    Version(Vec<u8>, Version),
+    Version(#[serde(with = "serde_bytes")] Vec<u8>, Version),
 }
 
 //Version key1-101, key2-102
@@ -83,6 +83,7 @@ pub enum MvccKeyPrefix {
     NextVersion,
     TxnActive,
     TxnWrite(Version),
+    Version(#[serde(with = "serde_bytes")] Vec<u8>),
 }
 
 impl MvccKeyPrefix {
