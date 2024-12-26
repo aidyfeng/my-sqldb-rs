@@ -112,13 +112,15 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         todo!()
     }
 
+    //类似Mvcc:NextVersion
     fn serialize_unit_variant(
         self,
         name: &'static str,
         variant_index: u32,
         variant: &'static str,
     ) -> Result<()> {
-        todo!()
+        self.output.extend(u8::try_from(variant_index));
+        Ok(())
     }
 
     fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<()>
@@ -128,6 +130,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         todo!()
     }
 
+    //类似  Mvcc::TxnActive(Version)
     fn serialize_newtype_variant<T>(
         self,
         name: &'static str,
@@ -138,15 +141,17 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     where
         T: ?Sized + ser::Serialize,
     {
-        todo!()
+        self.serialize_newtype_variant(name, variant_index, variant, value)?;
+        value.serialize(self);
+        Ok(())
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -157,6 +162,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         todo!()
     }
 
+    //Mvcc::TxnWrite(Version, Vec<u8>)
     fn serialize_tuple_variant(
         self,
         name: &'static str,
@@ -164,7 +170,8 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        todo!()
+        self.serialize_unit_variant(name, variant_index, variant)?;
+        Ok(self)
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
