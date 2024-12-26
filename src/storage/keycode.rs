@@ -1,6 +1,15 @@
-use serde::ser::{self, Impossible};
+use serde::{
+    ser::{self, Impossible, SerializeSeq},
+    Serialize,
+};
 
 use crate::error::{Error, Result};
+
+pub fn serialize<T: Serialize>(key: &T) -> Result<Vec<u8>> {
+    let mut serializer = Serializer { output: Vec::new() };
+    key.serialize(&mut serializer)?;
+    Ok(serializer.output)
+}
 
 pub struct Serializer {
     output: Vec<u8>,
@@ -190,5 +199,69 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
         todo!()
+    }
+}
+
+impl<'a> SerializeSeq for &'a mut Serializer {
+    type Ok = ();
+
+    type Error = Error;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + ser::Serialize,
+    {
+        value.serialize(&mut **self)
+    }
+
+    fn end(self) -> Result<()> {
+        Ok(())
+    }
+}
+
+// Same thing but for tuples.
+impl<'a> ser::SerializeTuple for &'a mut Serializer {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(&mut **self)
+    }
+
+    fn end(self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(&mut **self)
+    }
+
+    fn end(self) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bincode::serialize;
+
+    use crate::storage::{keycode, mvcc::MvccKey};
+
+    #[test]
+    fn test_encode() {
+        let k = MvccKey::NextVersion;
+        let v = keycode::serialize(&k).unwrap();
+        print!("{:?}", v)
     }
 }
