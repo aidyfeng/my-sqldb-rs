@@ -265,6 +265,28 @@ impl<'de> Deserializer<'de> {
         self.input = &self.input[len..];
         bytes
     }
+
+    //如果0之后是255, 说明是原始字符串0, 继续解析
+    //如果0之后是0, 说明已经结束
+    fn next_bytes(&mut self) -> Result<Vec<u8>> {
+        let mut res = Vec::new();
+        let mut iter = self.input.iter().enumerate();
+        let index = loop {
+            match iter.next() {
+                Some((_, 0)) => match iter.next() {
+                    Some((i, 0)) => break i + 1,
+                    Some((_, 255)) => res.push(0),
+                    _ => return Err(Error::Internal("unExpected Token".into())),
+                },
+                Some((_, b)) => res.push(*b),
+                _ => return Err(Error::Internal("unExpected Token".into())),
+            }
+        };
+
+        self.input = &self.input[index..];
+
+        return Ok(res);
+    }
 }
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
@@ -381,14 +403,14 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        visitor.visit_bytes(&self.next_bytes()?)
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        visitor.visit_byte_buf(self.next_bytes()?)
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
@@ -423,14 +445,14 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        visitor.visit_seq(self)
     }
 
     fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        visitor.visit_seq(self)
     }
 
     fn deserialize_tuple_struct<V>(
@@ -473,7 +495,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        visitor.visit_enum(self)
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
