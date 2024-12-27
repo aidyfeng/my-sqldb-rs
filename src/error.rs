@@ -1,4 +1,5 @@
 use std::{
+    array::TryFromSliceError,
     fmt::{self, Display},
     num::{ParseFloatError, ParseIntError},
     sync::PoisonError,
@@ -43,6 +44,12 @@ impl From<Box<ErrorKind>> for Error {
 
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
+        Error::Internal(value.to_string())
+    }
+}
+
+impl From<TryFromSliceError> for Error {
+    fn from(value: TryFromSliceError) -> Self {
         Error::Internal(value.to_string())
     }
 }

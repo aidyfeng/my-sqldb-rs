@@ -62,7 +62,7 @@ impl TransactionState {
 pub enum MvccKey {
     NextVersion,
     TxnActive(Version),
-    TxnWrite(Version, Vec<u8>),
+    TxnWrite(Version, #[serde(with = "serde_bytes")] Vec<u8>),
     Version(#[serde(with = "serde_bytes")] Vec<u8>, Version),
 }
 
