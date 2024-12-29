@@ -2,7 +2,6 @@ use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
-    iter::Scan,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -329,8 +328,85 @@ impl<E: Engine> MvccTransaction<E> {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ScanResult {
     pub key: Vec<u8>,
     pub value: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        error::Result,
+        storage::{disk::DiskEngine, engine::Engine, memory::MemoryEngine},
+    };
+
+    use super::Mvcc;
+
+    fn get(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val3".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val4".to_vec())?;
+        tx.delete(b"key3".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        assert_eq!(tx1.get(b"key1".to_vec())?, Some(b"val1".to_vec()));
+        assert_eq!(tx1.get(b"key2".to_vec())?, Some(b"val3".to_vec()));
+        assert_eq!(tx1.get(b"key3".to_vec())?, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get() -> Result<()> {
+        get(MemoryEngine::new())?;
+
+        let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
+        get(DiskEngine::new(p.clone())?)?;
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    fn get_isolation(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val3".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val4".to_vec())?;
+        tx.delete(b"key3".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        tx1.set(b"key1".to_vec(), b"val2".to_vec())?;
+
+        let tx2 = mvcc.begin()?;
+
+        let tx3 = mvcc.begin()?;
+        tx3.set(b"key2".to_vec(), b"val4".to_vec())?;
+        tx3.delete(b"key3".to_vec())?;
+        tx3.commit()?;
+
+        assert_eq!(tx2.get(b"key1".to_vec())?, Some(b"val1".to_vec()));
+        assert_eq!(tx2.get(b"key2".to_vec())?, Some(b"val3".to_vec()));
+        assert_eq!(tx2.get(b"key3".to_vec())?, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_isalation() -> Result<()> {
+        get_isolation(MemoryEngine::new())?;
+
+        let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
+        get_isolation(DiskEngine::new(p.clone())?)?;
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    
 }
