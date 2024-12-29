@@ -1,10 +1,12 @@
 use serde::{
-    de,
+    de::{self, EnumAccess, IntoDeserializer, SeqAccess, VariantAccess},
     ser::{self, Impossible, SerializeSeq},
     Serialize,
 };
 
 use crate::error::{Error, Result};
+
+use super::mvcc::MvccKey;
 
 pub fn serialize<T: Serialize>(key: &T) -> Result<Vec<u8>> {
     let mut serializer = Serializer { output: Vec::new() };
@@ -285,7 +287,7 @@ impl<'de> Deserializer<'de> {
 
         self.input = &self.input[index..];
 
-        return Ok(res);
+        Ok(res)
     }
 }
 
@@ -506,6 +508,66 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
+        todo!()
+    }
+}
+
+impl<'de, 'a> SeqAccess<'de> for Deserializer<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        // Deserialize an array element.
+        seed.deserialize(self).map(Some)
+    }
+}
+
+impl<'de, 'a> EnumAccess<'de> for &mut Deserializer<'de> {
+    type Error = Error;
+
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let index = self.take_bytes(1)[0] as u32;
+        let variant_index: Result<_> = seed.deserialize(index.into_deserializer());
+        Ok((variant_index?, self))
+    }
+}
+
+impl<'de, 'a> VariantAccess<'de> for &mut Deserializer<'de> {
+    type Error = Error;
+
+    fn unit_variant(self) -> Result<()> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        seed.deserialize(&mut *self)
+    }
+
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
+        visitor.visit_seq(self)
+    }
+
+    fn struct_variant<V>(
+        self,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> std::result::Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
