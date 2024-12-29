@@ -1,17 +1,20 @@
 use serde::{
     de::{self, EnumAccess, IntoDeserializer, SeqAccess, VariantAccess},
     ser::{self, Impossible, SerializeSeq},
-    Serialize,
+    Deserialize, Serialize,
 };
 
 use crate::error::{Error, Result};
 
-use super::mvcc::MvccKey;
-
-pub fn serialize<T: Serialize>(key: &T) -> Result<Vec<u8>> {
+pub fn serialize_key<T: Serialize>(key: &T) -> Result<Vec<u8>> {
     let mut serializer = Serializer { output: Vec::new() };
     key.serialize(&mut serializer)?;
     Ok(serializer.output)
+}
+
+pub fn deserialize_key<'a, T: Deserialize<'a>>(input: &'a [u8]) -> Result<T> {
+    let mut der = Deserializer { input };
+    T::deserialize(&mut der)
 }
 
 pub struct Serializer {
@@ -579,16 +582,14 @@ impl<'de, 'a> VariantAccess<'de> for &mut Deserializer<'de> {
 mod tests {
     use std::vec;
 
-    use bincode::serialize;
-
     use crate::storage::{
         keycode,
-        mvcc::{MvccKey, MvccKeyPrefix},
+        mvcc::{self, MvccKey, MvccKeyPrefix},
     };
 
     #[test]
     fn test_encode() {
-        let ser_cmp = |k: MvccKey, v: Vec<u8>| assert_eq!(keycode::serialize(&k).unwrap(), v);
+        let ser_cmp = |k: MvccKey, v: Vec<u8>| assert_eq!(keycode::serialize_key(&k).unwrap(), v);
         /* let k = MvccKey::NextVersion;
         let v = keycode::serialize(&k).unwrap();
         println!("{:?}", v); */
@@ -610,7 +611,8 @@ mod tests {
 
     #[test]
     fn test_encode_prefix() {
-        let ser_cmp = |k: MvccKeyPrefix, v: Vec<u8>| assert_eq!(keycode::serialize(&k).unwrap(), v);
+        let ser_cmp =
+            |k: MvccKeyPrefix, v: Vec<u8>| assert_eq!(keycode::serialize_key(&k).unwrap(), v);
         ser_cmp(MvccKeyPrefix::NextVersion, vec![0]);
         ser_cmp(MvccKeyPrefix::TxnActive, vec![1]);
         ser_cmp(MvccKeyPrefix::TxnWrite(1), vec![2, 0, 0, 0, 0, 0, 0, 0, 1]);
@@ -626,5 +628,24 @@ mod tests {
         let vv: &[u8; 3] = &v;
         let vvv: Vec<u8> = vv.try_into().unwrap();
         print!("{:?}", vvv);
+    }
+
+    #[test]
+    fn test_decode() {
+        let der_cmp = |k: MvccKey, v: Vec<u8>| {
+            let mvcc_key: MvccKey = super::deserialize_key(&v).unwrap();
+            assert_eq!(k, mvcc_key);
+        };
+
+        der_cmp(MvccKey::NextVersion, vec![0]);
+        der_cmp(MvccKey::TxnActive(1), vec![1, 0, 0, 0, 0, 0, 0, 0, 1]);
+        der_cmp(
+            MvccKey::TxnWrite(1, vec![1, 2, 3]),
+            vec![2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 0, 0],
+        );
+        der_cmp(
+            MvccKey::Version(b"abc".to_vec(), 11),
+            vec![3, 97, 98, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11],
+        );
     }
 }
