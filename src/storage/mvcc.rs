@@ -338,7 +338,7 @@ pub struct ScanResult {
 mod tests {
     use crate::{
         error::Result,
-        storage::{disk::DiskEngine, engine::Engine, memory::MemoryEngine},
+        storage::{disk::DiskEngine, engine::Engine, memory::MemoryEngine, mvcc::ScanResult},
     };
 
     use super::Mvcc;
@@ -408,5 +408,195 @@ mod tests {
         Ok(())
     }
 
-    
+    fn scan_prefix(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"aabb".to_vec(), b"val1".to_vec())?;
+        tx.set(b"abcc".to_vec(), b"val2".to_vec())?;
+        tx.set(b"bbaa".to_vec(), b"val3".to_vec())?;
+        tx.set(b"acca".to_vec(), b"val4".to_vec())?;
+        tx.set(b"aaca".to_vec(), b"val5".to_vec())?;
+        tx.set(b"bcca".to_vec(), b"val6".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let iter1 = tx1.scan_prefix(b"aa".to_vec())?;
+        assert_eq!(
+            iter1,
+            vec![
+                ScanResult {
+                    key: b"aabb".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult {
+                    key: b"aaca".to_vec(),
+                    value: b"val5".to_vec()
+                }
+            ]
+        );
+
+        let iter2 = tx1.scan_prefix(b"a".to_vec())?;
+        assert_eq!(
+            iter2,
+            vec![
+                ScanResult {
+                    key: b"aabb".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult {
+                    key: b"aaca".to_vec(),
+                    value: b"val5".to_vec()
+                },
+                ScanResult {
+                    key: b"abcc".to_vec(),
+                    value: b"val2".to_vec()
+                },
+                ScanResult {
+                    key: b"acca".to_vec(),
+                    value: b"val4".to_vec()
+                }
+            ]
+        );
+
+        let iter3 = tx1.scan_prefix(b"bcca".to_vec())?;
+        assert_eq!(
+            iter3,
+            vec![ScanResult {
+                key: b"bcca".to_vec(),
+                value: b"val6".to_vec()
+            },]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_scan_prefix() -> Result<()> {
+        scan_prefix(MemoryEngine::new())?;
+
+        let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
+        scan_prefix(DiskEngine::new(p.clone())?)?;
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    fn scan_isolation(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"aabb".to_vec(), b"val1".to_vec())?;
+        tx.set(b"abcc".to_vec(), b"val2".to_vec())?;
+        tx.set(b"bbaa".to_vec(), b"val3".to_vec())?;
+        tx.set(b"acca".to_vec(), b"val4".to_vec())?;
+        tx.set(b"aaca".to_vec(), b"val5".to_vec())?;
+        tx.set(b"bcca".to_vec(), b"val6".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+        tx2.set(b"acca".to_vec(), b"val4-1".to_vec())?;
+        tx2.set(b"aabb".to_vec(), b"val1-1".to_vec())?;
+
+        let tx3 = mvcc.begin()?;
+        tx3.set(b"bbaa".to_vec(), b"val3-1".to_vec())?;
+        tx3.delete(b"bcca".to_vec())?;
+        tx3.commit()?;
+
+        let iter1 = tx1.scan_prefix(b"aa".to_vec())?;
+        assert_eq!(
+            iter1,
+            vec![
+                ScanResult {
+                    key: b"aabb".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult {
+                    key: b"aaca".to_vec(),
+                    value: b"val5".to_vec()
+                },
+            ]
+        );
+
+        let iter2 = tx1.scan_prefix(b"a".to_vec())?;
+        assert_eq!(
+            iter2,
+            vec![
+                ScanResult {
+                    key: b"aabb".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult {
+                    key: b"aaca".to_vec(),
+                    value: b"val5".to_vec()
+                },
+                ScanResult {
+                    key: b"abcc".to_vec(),
+                    value: b"val2".to_vec()
+                },
+                ScanResult {
+                    key: b"acca".to_vec(),
+                    value: b"val4".to_vec()
+                },
+            ]
+        );
+
+        let iter3 = tx1.scan_prefix(b"bcca".to_vec())?;
+        assert_eq!(
+            iter3,
+            vec![ScanResult {
+                key: b"bcca".to_vec(),
+                value: b"val6".to_vec()
+            },]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_scan_isolation() -> Result<()> {
+        scan_isolation(MemoryEngine::new())?;
+
+        let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
+        scan_isolation(DiskEngine::new(p.clone())?)?;
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    fn set(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val3".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val4".to_vec())?;
+        tx.set(b"key4".to_vec(), b"val5".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+        tx1.set(b"key1".to_vec(), b"val1-1".to_vec())?;
+        tx1.set(b"key2".to_vec(), b"val3-1".to_vec())?;
+        tx1.set(b"key2".to_vec(), b"val3-2".to_vec())?;
+
+        tx2.set(b"key3".to_vec(), b"val4-1".to_vec())?;
+        tx2.set(b"key4".to_vec(), b"val5-1".to_vec())?;
+
+        tx1.commit()?;
+        tx2.commit()?;
+
+        let tx = mvcc.begin()?;
+        assert_eq!(tx.get(b"key1".to_vec())?, Some(b"val1-1".to_vec()));
+        assert_eq!(tx.get(b"key2".to_vec())?, Some(b"val3-2".to_vec()));
+        assert_eq!(tx.get(b"key3".to_vec())?, Some(b"val4-1".to_vec()));
+        assert_eq!(tx.get(b"key4".to_vec())?, Some(b"val5-1".to_vec()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_set() -> Result<()>{
+        set(MemoryEngine::new())?;
+        let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
+        set(DiskEngine::new(p.clone())?)?;
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
 }
