@@ -337,7 +337,7 @@ pub struct ScanResult {
 #[cfg(test)]
 mod tests {
     use crate::{
-        error::Result,
+        error::{self, Error, Result},
         storage::{disk::DiskEngine, engine::Engine, memory::MemoryEngine, mvcc::ScanResult},
     };
 
@@ -592,11 +592,56 @@ mod tests {
     }
 
     #[test]
-    fn test_set() -> Result<()>{
+    fn test_set() -> Result<()> {
         set(MemoryEngine::new())?;
         let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
         set(DiskEngine::new(p.clone())?)?;
         std::fs::remove_dir_all(p.parent().unwrap())?;
         Ok(())
     }
+
+    fn set_conflict(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val3".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val4".to_vec())?;
+        tx.set(b"key4".to_vec(), b"val5".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+
+        tx1.set(b"key1".to_vec(), b"val1-1".to_vec())?;
+        tx1.set(b"key1".to_vec(), b"val1-2".to_vec())?;
+
+        assert_eq!(
+            tx2.set(b"key1".to_vec(), b"val1-3".to_vec()),
+            Err(Error::WriteConflict)
+        );
+
+        let tx3 = mvcc.begin()?;
+        tx3.set(b"key5".to_vec(), b"val6".to_vec())?;
+        tx3.commit()?;
+
+        assert_eq!(
+            tx1.set(b"key5".to_vec(), b"val6-1".to_vec()),
+            Err(Error::WriteConflict)
+        );
+
+        tx1.commit()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_set_conflict() -> Result<()> {
+        set_conflict(MemoryEngine::new())?;
+        let p: std::path::PathBuf = tempfile::tempdir()?.into_path().join("sqldb-log");
+        set_conflict(DiskEngine::new(p.clone())?)?;
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    
 }
