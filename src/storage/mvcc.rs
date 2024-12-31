@@ -336,6 +336,8 @@ pub struct ScanResult {
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::remove_dir_all, result};
+
     use crate::{
         error::{self, Error, Result},
         storage::{disk::DiskEngine, engine::Engine, memory::MemoryEngine, mvcc::ScanResult},
@@ -643,5 +645,235 @@ mod tests {
         Ok(())
     }
 
+    fn delete(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val3".to_vec())?;
+        tx.delete(b"key2".to_vec())?;
+        tx.delete(b"key3".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val3-1".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        assert_eq!(tx1.get(b"key2".to_vec())?, None);
+
+        let iter = tx1.scan_prefix(b"ke".to_vec())?;
+        assert_eq!(
+            iter,
+            vec![
+                ScanResult {
+                    key: b"key1".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult {
+                    key: b"key3".to_vec(),
+                    value: b"val3-1".to_vec()
+                }
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete() -> Result<()>{
+        delete(MemoryEngine::new())?;
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        delete(DiskEngine::new(p.clone())?)?;
+        remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    fn delete_conflict(eng: impl Engine) -> Result<()> {
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+        tx1.delete(b"key1".to_vec())?;
+        tx1.set(b"key2".to_vec(), b"val2-1".to_vec())?;
+
+        assert_eq!(
+            tx2.delete(b"key1".to_vec()),
+            Err(Error::WriteConflict)
+        );
+
+        assert_eq!(
+            tx2.delete(b"key2".to_vec()),
+            Err(Error::WriteConflict)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_conflict() -> Result<()>{
+        delete_conflict(MemoryEngine::new())?;
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        delete_conflict(DiskEngine::new(p.clone())?)?;
+        remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
     
+
+    fn dirty_read(eng:impl Engine) -> Result<()>{
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val3".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+
+        tx2.set(b"key1".to_vec(), b"val1-1".to_vec())?;
+
+        assert_eq!(tx1.get(b"key1".to_vec())?,Some(b"val1".to_vec()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dirty_read() -> Result<()>{
+        dirty_read(MemoryEngine::new())?;
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        dirty_read(DiskEngine::new(p.clone())?)?;
+        remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }   
+
+    fn unrepeatable_read(eng:impl Engine) -> Result<()>{
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val3".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+
+        tx2.set(b"key1".to_vec(), b"val1-1".to_vec())?;
+        assert_eq!(tx1.get(b"key1".to_vec())?,Some(b"val1".to_vec()));
+        tx2.commit()?;
+        assert_eq!(tx1.get(b"key1".to_vec())?,Some(b"val1".to_vec()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_unrepeatable_read() -> Result<()>{
+        unrepeatable_read(MemoryEngine::new())?;
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        unrepeatable_read(DiskEngine::new(p.clone())?)?;
+        remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }   
+
+    fn phantom_read(eng:impl Engine) -> Result<()>{
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val3".to_vec())?;
+        tx.commit()?;
+
+        let tx1 = mvcc.begin()?;
+        let tx2 = mvcc.begin()?;
+
+        let iter1 = tx1.scan_prefix(b"key".to_vec())?;
+        assert_eq!(
+            iter1,
+            vec![
+                ScanResult{
+                    key: b"key1".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult{
+                    key: b"key2".to_vec(),
+                    value: b"val2".to_vec()
+                },
+                ScanResult{
+                    key: b"key3".to_vec(),
+                    value: b"val3".to_vec()
+                }
+            ]
+        );
+
+        tx2.set(b"key2".to_vec(), b"val2-1".to_vec())?;
+        tx2.set(b"key4".to_vec(), b"val4".to_vec())?;
+        tx2.commit()?;
+
+        let iter1 = tx1.scan_prefix(b"key".to_vec())?;
+        assert_eq!(
+            iter1,
+            vec![
+                ScanResult{
+                    key: b"key1".to_vec(),
+                    value: b"val1".to_vec()
+                },
+                ScanResult{
+                    key: b"key2".to_vec(),
+                    value: b"val2".to_vec()
+                },
+                ScanResult{
+                    key: b"key3".to_vec(),
+                    value: b"val3".to_vec()
+                }
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_phantom_read() -> Result<()>{
+        phantom_read(MemoryEngine::new())?;
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        phantom_read(DiskEngine::new(p.clone())?)?;
+        remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
+
+    fn rollback(eng:impl Engine) -> Result<()>{
+        let mvcc = Mvcc::new(eng);
+        let tx = mvcc.begin()?;
+        tx.set(b"key1".to_vec(), b"val1".to_vec())?;
+        tx.set(b"key2".to_vec(), b"val2".to_vec())?;
+        tx.set(b"key3".to_vec(), b"val3".to_vec())?;
+        tx.commit()?;
+
+
+        let tx1 = mvcc.begin()?;
+        tx1.set(b"key1".to_vec(), b"val1-1".to_vec())?;
+        tx1.set(b"key2".to_vec(), b"val2-2".to_vec())?;
+        tx1.set(b"key3".to_vec(), b"val3-3".to_vec())?;
+        tx1.rollback()?;
+
+        let tx2 = mvcc.begin()?;
+        assert_eq!(tx2.get(b"key1".to_vec())?,Some(b"val1".to_vec()));
+        assert_eq!(tx2.get(b"key2".to_vec())?,Some(b"val2".to_vec()));
+        assert_eq!(tx2.get(b"key3".to_vec())?,Some(b"val3".to_vec()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rollback() -> Result<()>{
+        rollback(MemoryEngine::new())?;
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        rollback(DiskEngine::new(p.clone())?)?;
+        remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }  
+
+
+
+
+
 }
